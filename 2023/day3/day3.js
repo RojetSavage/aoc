@@ -13,7 +13,7 @@ class Token {
 class Gear extends Token {
     constructor(char, pos, lineNum, linePos) {
         super(char, pos, lineNum, linePos)
-        this.surroundingNumbers = 0;
+        this.adjacentTokens = {}
     }
 }
 
@@ -30,9 +30,9 @@ class Lexer {
         this.lineNum = 1;
         this.linePos = -1;
 
-        this.tokens = [];
-        this.specialTokens = [];
-        this.gearTokens = [];
+        this.tokens = {};
+        this.specialTokens = {};
+        this.gearTokens = {}
     }
 
     go() {
@@ -40,7 +40,6 @@ class Lexer {
 
         while (this.char != "") {
             this.nextToken();
-            console.log(this.char)
         }
     }
 
@@ -107,62 +106,111 @@ class Lexer {
     }
 
     createToken(char, pos, lineNum, linePos) {
-        this.tokens.push(new Token(char, pos, lineNum, linePos))
+        this.tokens[JSON.stringify(`${linePos},${lineNum}`)] = new Token(char, pos, lineNum, linePos)
     }
 
     createGearToken(char, pos, lineNum, linePos) {
-        this.gearTokens.push(new Gear(char, pos, lineNum, linePos))
+        this.gearTokens[JSON.stringify(`${linePos},${lineNum}`)] = new Gear(char, pos, lineNum, linePos)
     }
 
     createSpecialToken(char, pos, lineNum, linePos) {
-        this.specialTokens.push(new Token(char, pos, lineNum, linePos))
+        this.specialTokens[JSON.stringify(`${linePos},${lineNum}`)] = new Token(char, pos, lineNum, linePos)
     }
 
     validateTokens() {
         let adjacentPos = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [1, 1], [0, 1], [-1, 1]];
 
-        this.tokens.forEach(token => {
+        Object.values(this.tokens).forEach(token => {
             let { linePos: x, lineNum: y, pos: pos } = token
 
             for (let i = x; i < x + token.chars.length; i++) {
                 adjacentPos.forEach(direction => {
-                    if (this.checkSurrounding(i, y-1, direction)) {
+                    if (this.checkSurrounding(i, y - 1, direction, this.isSymbol)) {
                         token.isValid = true;
-                    } 
+                    }
                 })
             }
-        }) 
+        })
     }
 
-    checkSurrounding(x, y, adjacentPos, token) {
-        let newX = x - adjacentPos[0] 
+    validateGears() {
+        let adjacentPos = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [1, 1], [0, 1], [-1, 1]];
+
+        Object.values(this.gearTokens).forEach(gear => {
+            let { linePos: x, lineNum: y } = gear
+
+            adjacentPos.forEach(direction => {
+                if (this.checkSurrounding(x, y - 1, direction, this.isInt)) {
+                    let i = 0;
+
+                    while (x >= 0 && y - 1 >= 0 && this.checkSurrounding(x - i, y - 1, direction, this.isInt)) {
+                        i++
+                    }
+
+                    let adjacentTokenCoords = JSON.stringify(`${x - direction[0] - i + 1},${y - direction[1]}`)
+                    gear.adjacentTokens[adjacentTokenCoords] = this.tokens[adjacentTokenCoords]
+                }
+            })
+        })
+    }
+
+
+    checkSurrounding(x, y, adjacentPos, validatorFunc) {
+        let newX = x - adjacentPos[0]
         let newY = y - adjacentPos[1]
 
         if (newX < 0 || newX >= this.lines[y].length) return false;
         if (newY < 0 || newY >= this.lines.length) return false;
 
-        if (this.isSymbol(this.lines[newY][newX])) {
+        if (validatorFunc(this.lines[newY][newX])) {
             return true;
         }
+        return false;
     }
 
     isSymbol(char) {
         if (char != '\n' && !Number.isInteger(Number.parseInt(char)) && char != '.') {
             return true;
         }
+        return false;
     }
-    
+
+    isInt(char) {
+        if (Number.isInteger(Number.parseInt(char))) {
+            return true;
+        }
+        return false;
+    }
+
     sumValidTokens() {
         let sum = 0;
 
-        this.tokens.forEach(token => {
+        Object.values(this.tokens).forEach(token => {
             if (token.isValid) {
                 sum += Number.parseInt(token.chars);
-                console.log(token)
             }
         })
 
         return sum;
+    }
+
+    sumGearMultiples() {
+        let sumOfMultiples = 0;
+
+        Object.values(this.gearTokens).forEach(gear => {
+            console.log(gear)
+            if (Object.values(gear.adjacentTokens).length == 2) {
+                let multiple = 1;
+                Object.values(gear.adjacentTokens).forEach(token => {
+                    multiple *= Number.parseInt(token.chars)
+                    console.log(token.chars)
+                })
+                
+                sumOfMultiples += multiple;
+            }
+        })
+
+        return sumOfMultiples;
     }
 }
 
@@ -173,6 +221,8 @@ let lexer = new Lexer(input)
 lexer.go();
 
 lexer.validateTokens();
+lexer.validateGears();
+console.log(lexer.sumGearMultiples());
 
-console.log(lexer.gearTokens)
+
 
