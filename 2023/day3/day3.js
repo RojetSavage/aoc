@@ -10,9 +10,10 @@ class Token {
     }
 }
 
-class SpecialToken extends Token {
+class Gear extends Token {
     constructor(char, pos, lineNum, linePos) {
         super(char, pos, lineNum, linePos)
+        this.surroundingNumbers = 0;
     }
 }
 
@@ -20,10 +21,9 @@ let i = 0;
 class Lexer {
     constructor(input) {
         this.input = input;
-        this.lines = this.input.split('\n')
+        this.lines = this.input.split('\n').map(line => line.trim());
         this.char = '\0';
 
-        //these two are only used for reading in the input, adjusted positions are required for line position
         this.pos = -1;
         this.readPos = 0;
 
@@ -32,10 +32,18 @@ class Lexer {
 
         this.tokens = [];
         this.specialTokens = [];
+        this.gearTokens = [];
     }
 
-    //updates char to read position, advances position and read position
-    //position represents the current char. 
+    go() {
+        this.readChar();
+
+        while (this.char != "") {
+            this.nextToken();
+            console.log(this.char)
+        }
+    }
+
     readChar() {
         if (this.readPos >= this.input.length) {
             this.char = '';
@@ -54,16 +62,15 @@ class Lexer {
     }
 
     nextToken() {
-        let nextToken = undefined;
-
         this.skipInvalidChars();
 
         if (Number.isInteger(Number.parseInt(this.char))) {
-            nextToken = this.readNumber();
+            this.readNumber();
+        } else if (this.char == "*") {
+            this.readGear();
         } else {
-            nextToken = this.readSymbol();
+            this.readSymbol();
         }
-        return nextToken;
     }
 
     readNumber() {
@@ -83,6 +90,11 @@ class Lexer {
         return nextToken;
     }
 
+    readGear() {
+        this.createGearToken(this.char, this.pos, this.lineNum, this.linePos);
+        this.readChar();
+    }
+
     skipInvalidChars() {
         while (this.char == '\n' || this.char == '.') {
             this.readChar();
@@ -98,41 +110,37 @@ class Lexer {
         this.tokens.push(new Token(char, pos, lineNum, linePos))
     }
 
+    createGearToken(char, pos, lineNum, linePos) {
+        this.gearTokens.push(new Gear(char, pos, lineNum, linePos))
+    }
+
     createSpecialToken(char, pos, lineNum, linePos) {
         this.specialTokens.push(new Token(char, pos, lineNum, linePos))
     }
 
     validateTokens() {
-        let adjacentPos = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [1, 1], [0, 1], [-1, 1]]
+        let adjacentPos = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [1, 1], [0, 1], [-1, 1]];
 
-        //perform a check for every token
         this.tokens.forEach(token => {
-            let { linePos: x, lineNum: y } = token
+            let { linePos: x, lineNum: y, pos: pos } = token
 
-            //for each direction possible
-            adjacentPos.forEach(dir => {
-
-                //for each char in token.chars
-                for (let i = x; i < x + token.chars.length; i++) {
-                    if (this.checkSurrounding(x, y - 1, dir)) {
+            for (let i = x; i < x + token.chars.length; i++) {
+                adjacentPos.forEach(direction => {
+                    if (this.checkSurrounding(i, y-1, direction)) {
                         token.isValid = true;
-                        console.log('we got a live one \n')
-                    } else {
-                        console.log('invalid position \n')
-                    }
-                }
-            })
-        })
+                    } 
+                })
+            }
+        }) 
     }
 
-    checkSurrounding(x, y, adjacentPos) {
-        console.log('original token pos ', x, y)
+    checkSurrounding(x, y, adjacentPos, token) {
         let newX = x - adjacentPos[0] 
         let newY = y - adjacentPos[1]
-        console.log('for each num ', newX, newY, adjacentPos)
+
         if (newX < 0 || newX >= this.lines[y].length) return false;
         if (newY < 0 || newY >= this.lines.length) return false;
-        
+
         if (this.isSymbol(this.lines[newY][newX])) {
             return true;
         }
@@ -143,19 +151,28 @@ class Lexer {
             return true;
         }
     }
+    
+    sumValidTokens() {
+        let sum = 0;
+
+        this.tokens.forEach(token => {
+            if (token.isValid) {
+                sum += Number.parseInt(token.chars);
+                console.log(token)
+            }
+        })
+
+        return sum;
+    }
 }
 
 const input = fs.readFileSync('./input.txt', { encoding: "ascii" });
 
 let lexer = new Lexer(input)
-lexer.readChar();
 
-while (lexer.char != "") {
-    lexer.nextToken();
-}
+lexer.go();
 
 lexer.validateTokens();
 
-// console.log(lexer.tokens);
-// console.log(lexer.specialTokens);
+console.log(lexer.gearTokens)
 
